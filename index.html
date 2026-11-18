@@ -1,0 +1,2078 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 루꼴라 광합성 vs 포도당 영양제 대조 실험 시뮬레이터</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Google Fonts: Noto Sans KR & JetBrains Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            margin: 0;
+            overflow: hidden;
+            user-select: none;
+            background-color: #0f172a;
+        }
+        .font-mono-num {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        /* 글래스모피즘 패널 */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.75);
+            box-shadow: 0 12px 32px -4px rgba(15, 23, 42, 0.16);
+        }
+        .glass-dark {
+            background: rgba(15, 23, 42, 0.86);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            color: #f8fafc;
+        }
+        /* 커스텀 스크롤바 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(241, 245, 249, 0.6);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.7);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 116, 139, 0.9);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D 캔버스 영역 -->
+    <div id="canvas-container"></div>
+
+    <!-- 상단 바: 실험 타이틀 + 변인통제 모니터 + 시간/스킵 컨트롤 -->
+    <header id="top-hud-bar" class="fixed top-3 left-3 right-3 z-20 flex flex-col xl:flex-row justify-between items-stretch xl:items-center gap-2.5 pointer-events-none transition-all duration-300">
+        
+        <!-- 좌측: 실험 타이틀 및 경과 시간 -->
+        <div class="glass-panel rounded-2xl px-4 py-2.5 pointer-events-auto flex flex-wrap items-center justify-between sm:justify-start gap-3">
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-neutral-900 text-white flex items-center justify-center text-xs font-black tracking-tighter shadow-sm">
+                    LAB
+                </div>
+                <div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-[10px] font-extrabold uppercase tracking-wider bg-neutral-100 text-neutral-800 border border-neutral-300 px-1.5 py-0.5 rounded">생명과학 탐구 실험</span>
+                        <h1 class="text-sm sm:text-base font-black text-neutral-900 tracking-tight">광합성 vs 포도당 영양제 대조 실험</h1>
+                    </div>
+                    <p class="text-[11px] text-neutral-500">빛 없이 주입된 포도당 영양제만으로 루꼴라가 정상 생장할 수 있을까?</p>
+                </div>
+            </div>
+
+            <div class="h-8 w-px bg-neutral-200 hidden md:block"></div>
+
+            <!-- 현재 경과 시간 및 주차 -->
+            <div class="flex items-center gap-2.5 bg-neutral-900 text-white px-3.5 py-1.5 rounded-xl shadow-inner">
+                <span id="time-weather-badge" class="text-[11px] font-extrabold px-2 py-0.5 rounded bg-white text-neutral-900">주간</span>
+                <div>
+                    <div class="text-xs font-extrabold text-white font-mono-num" id="sim-clock-display">0주차 · 0일차 09:00</div>
+                    <div class="text-[10px] text-neutral-300" id="sim-light-info">창가 일조량: 100% (광합성 최적)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 중앙: 변인통제 상태 표시기 (같게 해야 할 조건 유지 표시) -->
+        <div class="glass-panel rounded-2xl px-3.5 py-2 pointer-events-auto flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 text-xs">
+            <span class="text-[11px] font-extrabold text-neutral-900 bg-neutral-100 border border-neutral-300 px-2.5 py-1 rounded-lg">
+                변인통제 (동일 조건)
+            </span>
+            <div class="flex items-center gap-1 text-neutral-600 font-medium bg-white border border-neutral-200 px-2.5 py-1 rounded-lg" title="실내 창가 적정 생육 온도 유지">
+                <span>온도:</span> <strong class="font-mono-num text-neutral-900">22°C</strong>
+            </div>
+            <div class="flex items-center gap-1 text-neutral-600 font-medium bg-white border border-neutral-200 px-2.5 py-1 rounded-lg" title="일정한 상대 습도 유지">
+                <span>습도:</span> <strong class="font-mono-num text-neutral-900">55%</strong>
+            </div>
+            <div class="flex items-center gap-1 text-neutral-600 font-medium bg-white border border-neutral-200 px-2.5 py-1 rounded-lg" title="두 화분에 매일 동일한 양의 물 공급">
+                <span>급수량:</span> <strong class="text-neutral-900">동일 유지</strong>
+            </div>
+            <div class="flex items-center gap-1 text-neutral-600 font-medium bg-white border border-neutral-200 px-2.5 py-1 rounded-lg" title="가림막 내부도 통기구를 통해 O2/CO2 농도 동일 유지">
+                <span>공기(O₂/CO₂):</span> <strong class="text-neutral-900">통제 동일</strong>
+            </div>
+        </div>
+
+        <!-- 우측: 시간 스킵 & 탐구보고서 버튼 -->
+        <div class="glass-panel rounded-2xl p-2 pointer-events-auto flex flex-wrap items-center justify-between sm:justify-end gap-1.5">
+            <!-- 배속 컨트롤 (일시정지, 1x, 5x, 20x) -->
+            <div class="flex items-center bg-neutral-100 border border-neutral-200 p-1 rounded-xl">
+                <button onclick="setTimeScale(0)" id="btn-speed-0" class="speed-btn px-2.5 py-1 rounded-lg text-xs font-bold text-neutral-600 hover:bg-white transition" title="일시정지">일시정지</button>
+                <button onclick="setTimeScale(1)" id="btn-speed-1" class="speed-btn px-2.5 py-1 rounded-lg text-xs font-bold bg-neutral-900 text-white shadow-sm transition">1x</button>
+                <button onclick="setTimeScale(5)" id="btn-speed-5" class="speed-btn px-2.5 py-1 rounded-lg text-xs font-bold text-neutral-600 hover:bg-white transition">5x</button>
+                <button onclick="setTimeScale(20)" id="btn-speed-20" class="speed-btn px-2.5 py-1 rounded-lg text-xs font-bold text-neutral-600 hover:bg-white transition">20x</button>
+            </div>
+
+            <!-- 스킵 컨트롤 -->
+            <button onclick="skipTimeDays(1)" class="bg-white hover:bg-neutral-100 active:scale-95 text-neutral-900 border border-neutral-300 text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm transition">
+                +1일 스킵
+            </button>
+            <button onclick="skipTimeDays(7)" class="bg-white hover:bg-neutral-100 active:scale-95 text-neutral-900 border border-neutral-300 text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm transition">
+                +1주(7일) 스킵
+            </button>
+
+            <div class="h-5 w-px bg-neutral-300 mx-0.5"></div>
+
+            <!-- 주간 관찰 촬영 및 탐구보고서 열기 -->
+            <button onclick="recordObservationSnapshot(true)" class="bg-white hover:bg-neutral-100 active:scale-95 text-neutral-900 border border-neutral-300 text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm transition" title="현재 시점의 생장 데이터를 탐구보고서에 기록">
+                관찰 기록
+            </button>
+            <button onclick="openReportModal()" class="bg-neutral-900 hover:bg-neutral-800 active:scale-95 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-md transition flex items-center gap-1.5">
+                탐구보고서 <span id="record-count-badge" class="bg-white text-neutral-900 text-[10px] px-1.5 py-0.2 rounded-full font-mono-num">1</span>
+            </button>
+            <button onclick="resetExperiment()" title="0일차로 초기화" class="bg-neutral-100 hover:bg-neutral-200 text-neutral-700 border border-neutral-200 text-xs font-bold px-2.5 py-1.5 rounded-xl transition">
+                초기화
+            </button>
+        </div>
+    </header>
+
+    <!-- 중앙 상단 토스트 알림 영역 -->
+    <div id="toast-container" class="fixed top-24 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col items-center gap-1.5"></div>
+
+    <!-- 전체 UI 숨김 상태(H키)일 때 우측 상단에 작게 뜨는 UI 복원 버튼 -->
+    <button id="restore-all-hud-btn" onclick="toggleAllUI()" class="hidden fixed top-3 right-3 z-40 glass-dark px-3.5 py-2 rounded-xl text-xs font-bold shadow-lg hover:bg-neutral-800 transition">
+        전체 UI 열기 (H)
+    </button>
+
+    <!-- 하단 대조군(A) & 비교군(B) 실시간 생장 계측 패널 -->
+    <footer id="bottom-hud-bar" class="fixed bottom-3 left-3 right-3 z-20 flex flex-col lg:flex-row justify-between items-stretch lg:items-end gap-3 pointer-events-none transition-all duration-300">
+        
+        <!-- [화분 A] 대조군: 햇빛 O / 광합성 군 -->
+        <div id="card-pot-a" class="glass-panel rounded-2xl p-3.5 w-full lg:w-[365px] pointer-events-auto border-t-4 border-t-neutral-900 transition-all duration-200">
+            <div class="flex justify-between items-start mb-2">
+                <div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="bg-neutral-900 text-white text-[10px] font-extrabold px-2 py-0.5 rounded">화분 A (대조군)</span>
+                        <span class="bg-neutral-100 text-neutral-800 border border-neutral-300 text-[10px] font-bold px-2 py-0.5 rounded">햇빛 노출 · 광합성 O</span>
+                    </div>
+                    <h2 class="text-sm font-black text-neutral-900 mt-1 flex items-center gap-1.5">
+                        <span>자연 광합성 루꼴라</span>
+                        <button onclick="toggleCameraZoom('A')" id="btn-zoom-a" class="text-[10px] bg-white hover:bg-neutral-100 text-neutral-800 border border-neutral-300 px-2 py-0.5 rounded font-semibold transition">확대 (A)</button>
+                    </h2>
+                </div>
+                <div class="flex items-center gap-1">
+                    <button onclick="waterBothPots()" class="bg-neutral-900 hover:bg-neutral-800 active:scale-95 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-xl shadow-sm transition" title="변인통제를 위해 A와 B 화분에 동일한 양의 물을 동시에 줍니다">
+                        동일 급수
+                    </button>
+                    <button onclick="togglePotCard('A')" class="bg-white hover:bg-neutral-100 text-neutral-700 border border-neutral-300 text-[11px] font-bold px-2.5 py-1.5 rounded-xl transition" title="화분 A 상태창 숨기기">
+                        숨기기
+                    </button>
+                </div>
+            </div>
+
+            <!-- 실시간 계측 지표 (탐구보고서 항목과 일치) -->
+            <div class="grid grid-cols-3 gap-1.5 bg-neutral-50 border border-neutral-200 rounded-xl p-2 text-center mb-2">
+                <div>
+                    <div class="text-[10px] text-neutral-500">잎 크기 / 개수</div>
+                    <div class="text-xs font-extrabold text-neutral-900 font-mono-num"><span id="metric-leafsize-a">2.2</span>cm / <span id="metric-leafcnt-a">4</span>장</div>
+                </div>
+                <div class="border-x border-neutral-200">
+                    <div class="text-[10px] text-neutral-500">줄기 길이 / 굵기</div>
+                    <div class="text-xs font-extrabold text-neutral-900 font-mono-num"><span id="metric-stemlen-a">3.2</span>cm / <span id="metric-stemthick-a">1.8</span>mm</div>
+                </div>
+                <div>
+                    <div class="text-[10px] text-neutral-500">잎 색깔 (엽록소)</div>
+                    <div class="flex items-center justify-center gap-1 mt-0.5">
+                        <span id="swatch-a" class="w-3 h-3 rounded-full inline-block border border-black/25" style="background-color: #15803d;"></span>
+                        <span id="colorname-a" class="text-[11px] font-bold text-neutral-900">짙은 초록</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 광합성 및 에너지 바 -->
+            <div class="space-y-1.5 text-[11px]">
+                <div>
+                    <div class="flex justify-between font-bold text-neutral-700 mb-0.5">
+                        <span>광합성 포도당 합성률</span>
+                        <span id="photo-val-a" class="text-neutral-900 font-mono-num">95%</span>
+                    </div>
+                    <div class="w-full bg-neutral-200 rounded-full h-1.5 overflow-hidden">
+                        <div id="photo-bar-a" class="bg-neutral-900 h-1.5 rounded-full transition-all duration-300" style="width: 95%"></div>
+                    </div>
+                </div>
+                <div class="flex justify-between text-[10px] text-neutral-500 pt-0.5">
+                    <span>토양 수분: <strong id="water-val-a" class="text-neutral-900 font-mono-num">82%</strong></span>
+                    <span>내부 포도당 보유량: <strong id="glucose-val-a" class="text-neutral-900 font-mono-num">85%</strong></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 중앙: 상태창 복원 미니 버튼(카드 숨김 시 노출) + 입자 범례 & 카메라 조작 가이드 -->
+        <div class="flex flex-col items-center gap-1.5 pointer-events-auto mb-0.5 mx-auto">
+            <!-- 화분 A 또는 B 카드가 숨겨졌을 때 나타나는 하단 중앙 복원 버튼 -->
+            <div id="pot-cards-restore-bar" class="hidden flex items-center gap-2 bg-neutral-900/95 backdrop-blur-md text-white px-3.5 py-2 rounded-2xl shadow-xl border border-white/20">
+                <button onclick="showBothPotCards()" class="text-xs font-extrabold text-white hover:text-neutral-300 transition">
+                    화분 A · B 상태창 열기
+                </button>
+                <span class="text-neutral-600">|</span>
+                <button id="restore-btn-a" onclick="togglePotCard('A')" class="hidden text-[11px] font-bold bg-white text-neutral-900 hover:bg-neutral-200 px-2.5 py-0.5 rounded-lg transition">
+                    + 화분 A
+                </button>
+                <button id="restore-btn-b" onclick="togglePotCard('B')" class="hidden text-[11px] font-bold bg-white text-neutral-900 hover:bg-neutral-200 px-2.5 py-0.5 rounded-lg transition">
+                    + 화분 B
+                </button>
+            </div>
+
+            <div class="hidden xl:block glass-dark rounded-2xl px-4 py-2 text-[11px] shadow-xl max-w-lg">
+                <div class="font-bold text-white mb-1 text-center">실시간 물질 이동 & 대사 시각화 범례</div>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-neutral-300">
+                    <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block"></span> 빛 에너지 (햇빛 광자)</div>
+                    <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-slate-400 inline-block"></span> 대기 중 이산화탄소 (CO₂)</div>
+                    <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span> 광합성 산소 방출 (O₂)</div>
+                    <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block"></span> 앰플 포도당 흡수 (인위적 주입)</div>
+                </div>
+            </div>
+            <div class="text-[11px] text-white/95 bg-neutral-900/80 backdrop-blur-md px-3.5 py-1 rounded-full shadow border border-white/10">
+                단축키: <strong>A키</strong> 화분 A 확대/취소 | <strong>B키</strong> 화분 B 확대/취소 | <strong>H키</strong> 전체 UI 끄기/켜기
+            </div>
+        </div>
+
+        <!-- [화분 B] 비교군: 햇빛 X (가림막 ON/OFF) / 포도당 영양제 주입 군 -->
+        <div id="card-pot-b" class="glass-panel rounded-2xl p-3.5 w-full lg:w-[405px] pointer-events-auto border-t-4 border-t-neutral-900 transition-all duration-200">
+            <div class="flex justify-between items-start mb-2">
+                <div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="bg-white text-neutral-900 border border-neutral-900 text-[10px] font-extrabold px-2 py-0.5 rounded">화분 B (비교군)</span>
+                        <span id="badge-status-b" class="bg-neutral-900 text-white text-[10px] font-bold px-2 py-0.5 rounded">가림막 ON · 광합성 X</span>
+                    </div>
+                    <h2 class="text-sm font-black text-neutral-900 mt-1 flex items-center gap-1.5">
+                        <span>포도당 영양제 주입 루꼴라</span>
+                        <button onclick="toggleCameraZoom('B')" id="btn-zoom-b" class="text-[10px] bg-white hover:bg-neutral-100 text-neutral-800 border border-neutral-300 px-2 py-0.5 rounded font-semibold transition">확대 (B)</button>
+                    </h2>
+                </div>
+                <!-- 가림막 ON/OFF, X-Ray 투시 토글, 숨기기 버튼 -->
+                <div class="flex items-center gap-1">
+                    <button onclick="toggleXrayMode()" id="btn-xray" class="bg-white hover:bg-neutral-100 text-neutral-900 border border-neutral-300 text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg transition" title="가림막이 닫혀 있을 때 내부 식물을 반투명하게 투시하여 관찰합니다">
+                        투시 ON
+                    </button>
+                    <button onclick="toggleShadowBox()" id="btn-box-toggle" class="bg-neutral-900 hover:bg-neutral-800 text-white text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg shadow-sm transition">
+                        가림막 OFF
+                    </button>
+                    <button onclick="togglePotCard('B')" class="bg-white hover:bg-neutral-100 text-neutral-700 border border-neutral-300 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition" title="화분 B 상태창 숨기기">
+                        숨기기
+                    </button>
+                </div>
+            </div>
+
+            <!-- 포도당 영양제 앰플 주입 컨트롤 바 -->
+            <div class="bg-neutral-50 border border-neutral-200 rounded-xl p-2 mb-2 flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                    <span class="px-1.5 py-1 rounded-lg bg-neutral-900 text-white text-[10px] font-black tracking-tight">AMP</span>
+                    <div>
+                        <div class="text-[11px] font-extrabold text-neutral-900">포도당 함유 식물 영양제 앰플</div>
+                        <div class="text-[10px] text-neutral-600">
+                            잔여량: <strong id="ampoule-level-text" class="font-mono-num text-neutral-900">85%</strong> · 누적 주입: <strong id="ampoule-count-text" class="font-mono-num text-neutral-900">1회</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <label class="flex items-center gap-1 text-[10px] font-bold text-neutral-800 cursor-pointer bg-white px-2 py-1 rounded-lg border border-neutral-300" title="정해진 주기(3일마다) 자동으로 새 포도당 앰플을 흙에 꽂아줍니다">
+                        <input type="checkbox" id="auto-ampoule-chk" checked class="accent-neutral-900">
+                        <span>자동주입</span>
+                    </label>
+                    <button onclick="injectGlucoseAmpoule(false)" class="bg-neutral-900 hover:bg-neutral-800 active:scale-95 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg shadow-sm transition">
+                        앰플 꽂기
+                    </button>
+                </div>
+            </div>
+
+            <!-- 실시간 계측 지표 -->
+            <div class="grid grid-cols-3 gap-1.5 bg-neutral-50 border border-neutral-200 rounded-xl p-2 text-center mb-2">
+                <div>
+                    <div class="text-[10px] text-neutral-500">잎 크기 / 개수</div>
+                    <div class="text-xs font-extrabold text-neutral-900 font-mono-num"><span id="metric-leafsize-b">2.2</span>cm / <span id="metric-leafcnt-b">4</span>장</div>
+                </div>
+                <div class="border-x border-neutral-200">
+                    <div class="text-[10px] text-neutral-500">줄기 길이 / 굵기</div>
+                    <div class="text-xs font-extrabold text-neutral-900 font-mono-num"><span id="metric-stemlen-b">3.2</span>cm / <span id="metric-stemthick-b">1.8</span>mm</div>
+                </div>
+                <div>
+                    <div class="text-[10px] text-neutral-500">잎 색깔 (엽록소)</div>
+                    <div class="flex items-center justify-center gap-1 mt-0.5">
+                        <span id="swatch-b" class="w-3 h-3 rounded-full inline-block border border-black/25" style="background-color: #15803d;"></span>
+                        <span id="colorname-b" class="text-[11px] font-bold text-neutral-900">짙은 초록</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 에너지 흡수 바 -->
+            <div class="space-y-1.5 text-[11px]">
+                <div>
+                    <div class="flex justify-between font-bold text-neutral-700 mb-0.5">
+                        <span>앰플 포도당 흡수율 (광합성 효율: <span id="photo-val-b" class="font-mono-num">0%</span>)</span>
+                        <span id="glucose-absorb-b" class="text-neutral-900 font-mono-num">94%</span>
+                    </div>
+                    <div class="w-full bg-neutral-200 rounded-full h-1.5 overflow-hidden">
+                        <div id="glucose-bar-b" class="bg-neutral-900 h-1.5 rounded-full transition-all duration-300" style="width: 94%"></div>
+                    </div>
+                </div>
+                <div class="flex justify-between text-[10px] text-neutral-500 pt-0.5">
+                    <span>토양 수분: <strong id="water-val-b" class="text-neutral-900 font-mono-num">82%</strong></span>
+                    <span>웃자람(도장) 지수: <strong id="etiolation-val-b" class="text-neutral-900 font-mono-num">0%</strong></span>
+                </div>
+            </div>
+        </div>
+
+    </footer>
+
+    <!-- 과학 탐구보고서 모달 (실험 설계 + 주차별 관찰 데이터 표 + 결론 도출) -->
+    <div id="report-modal" class="fixed inset-0 z-50 hidden bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
+            
+            <!-- 모달 헤더 -->
+            <div class="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
+                <div>
+                    <h2 class="text-lg font-black tracking-tight">과학 탐구 실험 보고서 & 주차별 관찰 일지</h2>
+                    <p class="text-xs text-slate-300">주제: 광합성을 하지 않고 인위적으로 주입한 포도당 함유 영양제만으로 식물이 자랄 수 있을까?</p>
+                </div>
+                <button onclick="closeReportModal()" class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition">
+                    닫기
+                </button>
+            </div>
+
+            <!-- 탭 메뉴 -->
+            <div class="flex border-b border-slate-200 bg-slate-50 px-6 pt-2 gap-2">
+                <button onclick="switchReportTab('data')" id="tab-btn-data" class="report-tab-btn px-4 py-2.5 text-xs sm:text-sm font-extrabold border-b-2 border-emerald-600 text-emerald-700 bg-white rounded-t-xl">
+                    주차별 생장 비교 데이터 & 결론
+                </button>
+                <button onclick="switchReportTab('design')" id="tab-btn-design" class="report-tab-btn px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800">
+                    탐구 설계서 (가설 · 변인통제 · 탐구순서)
+                </button>
+            </div>
+
+            <!-- 모달 본문 (스크롤 가능) -->
+            <div class="p-6 overflow-y-auto space-y-6 flex-1 text-slate-800">
+                
+                <!-- [탭 1] 주차별 관찰 데이터 표 & 가설 검증 결론 -->
+                <div id="tab-content-data" class="space-y-6">
+                    <!-- 요약 비교 카드 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4">
+                            <div class="text-xs font-extrabold text-emerald-800 mb-1">화분 A (대조군: 햇빛 O / 광합성 군)</div>
+                            <p class="text-xs text-slate-700 leading-relaxed">
+                                빛 에너지와 CO₂, 물을 이용해 스스로 포도당과 엽록소를 합성하여 잎이 크고 짙은 초록색을 띠며, 줄기가 굵고 튼튼하게 균형 잡힌 생장을 보입니다.
+                            </p>
+                        </div>
+                        <div class="bg-amber-50/70 border border-amber-200 rounded-2xl p-4">
+                            <div class="text-xs font-extrabold text-amber-800 mb-1">화분 B (비교군: 햇빛 X / 포도당 영양제 주입 군)</div>
+                            <p class="text-xs text-slate-700 leading-relaxed">
+                                흙에 꽂은 포도당 앰플을 흡수하여 생명을 유지하고 자라긴 하지만, 빛이 없어 엽록소가 파괴되어 잎이 작고 연노란색(황화 현상)을 띠며 줄기가 가늘고 길게 웃자랍니다.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 주차별 측정 데이터 테이블 -->
+                    <div>
+                        <div class="flex justify-between items-center mb-2.5">
+                            <h3 class="text-sm font-extrabold text-slate-800">주차별 생장 측정 기록표 (1주 단위 자동/수동 스냅샷)</h3>
+                            <button onclick="recordObservationSnapshot(false)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition">
+                                + 현재 시점 기록 추가
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-sm">
+                            <table class="w-full text-xs text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-100 text-slate-700 border-b border-slate-200">
+                                        <th class="py-3 px-3 font-extrabold">관찰 시점</th>
+                                        <th class="py-3 px-3 font-extrabold text-emerald-800 bg-emerald-50/60">화분 A 잎 크기/개수</th>
+                                        <th class="py-3 px-3 font-extrabold text-emerald-800 bg-emerald-50/60">화분 A 줄기 (길이/굵기)</th>
+                                        <th class="py-3 px-3 font-extrabold text-emerald-800 bg-emerald-50/60">화분 A 잎 색깔 (HEX)</th>
+                                        <th class="py-3 px-3 font-extrabold text-amber-800 bg-amber-50/60">화분 B 잎 크기/개수</th>
+                                        <th class="py-3 px-3 font-extrabold text-amber-800 bg-amber-50/60">화분 B 줄기 (길이/굵기)</th>
+                                        <th class="py-3 px-3 font-extrabold text-amber-800 bg-amber-50/60">화분 B 잎 색깔 (주입횟수)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="report-table-body" class="divide-y divide-slate-200 bg-white font-mono-num">
+                                    <!-- JS로 동적 렌더링 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 탐구 결론 및 가설 검증 -->
+                    <div class="bg-slate-900 text-white rounded-2xl p-5 space-y-2">
+                        <div class="text-amber-300 font-extrabold text-sm">
+                            탐구 결과 분석 및 가설 검증 결론
+                        </div>
+                        <p id="conclusion-text" class="text-xs sm:text-sm text-slate-200 leading-relaxed">
+                            실험을 진행하여 1주차~4주차 데이터를 수집해 보세요! (+1주 스킵 버튼을 누르면 빠르게 결과를 비교할 수 있습니다.)
+                        </p>
+                    </div>
+                </div>
+
+                <!-- [탭 2] 탐구 설계서 원문 정리 -->
+                <div id="tab-content-design" class="hidden space-y-4 text-xs sm:text-sm">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                            <h4 class="font-extrabold text-indigo-700 mb-1.5">1. 탐구 주제</h4>
+                            <p class="text-slate-700 leading-relaxed">광합성을 하지 않고 인위적인 방법으로 주입한 영양제(포도당이 함유된 농업용)만으로 식물이 자랄 수 있을까?</p>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                            <h4 class="font-extrabold text-emerald-700 mb-1.5">2. 탐구 가설</h4>
+                            <p class="text-slate-700 leading-relaxed">광합성을 하지 않고 주입하는 식물 영양제로 영양소를 공급해도 자랄 수 있으나, 광합성을 하는 식물에 비해 비정상적인 모습(잎이 작고 누렇게 변하며 줄기가 가늘고 길게 웃자람)으로 자랄 것이다.</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                        <h4 class="font-extrabold text-slate-800">3. 변인통제 설계</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div class="bg-white p-3 rounded-xl border border-amber-200">
+                                <span class="text-xs font-extrabold text-amber-700 block mb-1">▶ 다르게 할 조건 (조작변인)</span>
+                                <ul class="list-disc list-inside text-xs text-slate-700 space-y-1">
+                                    <li><strong>화분 A (대조군):</strong> 햇빛이 잘 비치는 창가에 그대로 노출 (자연 광합성)</li>
+                                    <li><strong>화분 B (비교군):</strong> 햇빛 차단 가림막 설치 + 흙에 포도당 함유 식물 영양제 주기적 주입</li>
+                                </ul>
+                            </div>
+                            <div class="bg-white p-3 rounded-xl border border-indigo-200">
+                                <span class="text-xs font-extrabold text-indigo-700 block mb-1">▶ 같게 해야 할 조건 (통제변인)</span>
+                                <ul class="list-disc list-inside text-xs text-slate-700 space-y-1">
+                                    <li>식물의 종류 (동일한 시기의 루꼴라 모종)</li>
+                                    <li>주변 온도 (22°C) 및 습도 (55%)</li>
+                                    <li>주는 물의 양 (동일 급수량 유지) 및 공기(O₂, CO₂) 순환 조건</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                            <h4 class="font-extrabold text-slate-800 mb-1.5">4. 준비물</h4>
+                            <p class="text-xs text-slate-700 leading-relaxed">루꼴라 모종 2개, 화분 2개, 빛을 차단할 수 있는 가림막(박스), 포도당 함유 식물 영양제 앰플, 물뿌리개, 관찰 기록 도구(자, 카메라)</p>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                            <h4 class="font-extrabold text-rose-700 mb-1.5">5. 주의할 점</h4>
+                            <p class="text-xs text-slate-700 leading-relaxed">두 화분 모두 같은 양의 물과 산소·이산화탄소를 얻을 수 있는 환경을 조성하고(가림막 하단 통기 확보), 오직 식물이 빛을 받는 여부와 영양제 주입 유무만 다르게 설정한다.</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                        <h4 class="font-extrabold text-slate-800 mb-2">6. 탐구 순서 및 관찰 방법</h4>
+                        <ol class="list-decimal list-inside text-xs text-slate-700 space-y-1.5 leading-relaxed">
+                            <li>2개의 화분 안에 각각 동일한 크기의 루꼴라 모종을 심는다.</li>
+                            <li>한 화분(B)에만 빛을 가릴 수 있는 가림막을 설치한다.</li>
+                            <li>두 화분을 햇빛을 잘 받는 창가에 나란히 설치한 뒤 똑같은 양의 물을 준다.</li>
+                            <li>빛을 받지 못하는 가림막 화분(B)에는 포도당이 함유된 식물 영양제 앰플을 정해진 시간마다 흙에 꽂아 놓고 변화를 지켜본다.</li>
+                            <li>1주에 한 번씩 사진을 찍고 잎의 크기와 색깔, 줄기의 굵기와 길이, 잎의 개수 등을 측정하여 탐구보고서를 작성한다.</li>
+                        </ol>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * ============================================================================
+         * 1. 실험 시뮬레이션 상태 모델
+         * ============================================================================
+         */
+        const simState = {
+            totalHours: 9.0,          // 0일차 09:00 시작
+            timeScale: 1,             // 0: 정지, 1: 1배속, 5: 5배속, 20: 20배속
+            boxCovered: true,         // 화분 B 가림막 ON 기본 시작
+            xrayMode: true,           // 가림막 ON일 때도 내부 관찰용 투시 모드 기본 활성
+            boxAnimProgress: 1.0,     // 0(열림) ~ 1(닫힘)
+            sunIntensity: 1.0,
+            lastRecordedWeek: 0,
+            lastAutoAmpouleDay: 0,
+            records: [],
+            uiState: {
+                allHidden: false,
+                cardAVisible: true,
+                cardBVisible: true
+            },
+            pots: {
+                A: {
+                    id: 'A',
+                    label: '화분 A (대조군: 햇빛 O)',
+                    water: 82,
+                    photosynthesis: 95,
+                    glucoseEnergy: 85,
+                    chlorophyll: 1.0,
+                    leafSizeCm: 2.2,
+                    leafCount: 4,
+                    stemLengthCm: 3.2,
+                    stemThickMm: 1.8,
+                    etiolation: 0,
+                    ampouleCount: 0
+                },
+                B: {
+                    id: 'B',
+                    label: '화분 B (비교군: 가림막 + 포도당 앰플)',
+                    water: 82,
+                    photosynthesis: 0,
+                    glucoseEnergy: 80,
+                    ampouleRemaining: 85,
+                    ampouleCount: 1,
+                    chlorophyll: 1.0,
+                    leafSizeCm: 2.2,
+                    leafCount: 4,
+                    stemLengthCm: 3.2,
+                    stemThickMm: 1.8,
+                    etiolation: 0
+                }
+            }
+        };
+
+        // Three.js 전역 객체
+        let scene, camera, renderer;
+        let sunLight, hemiLight;
+        const cameraRig = {
+            focusedPot: null, // null(전체 보기), 'A', 'B'
+            currentPos: new THREE.Vector3(0, 4.3, 8.6),
+            targetPos: new THREE.Vector3(0, 4.3, 8.6),
+            currentLookAt: new THREE.Vector3(0, 1.45, 0.2),
+            targetLookAt: new THREE.Vector3(0, 1.45, 0.2)
+        };
+        let sunRayMeshes = [];
+        let potGroups = { A: null, B: null };
+        let plantGroups = { A: null, B: null };
+        let soilMeshes = { A: null, B: null };
+        let shadowBoxGroup, shadowBoxPanels = [];
+        let ampouleGroup, ampouleLiquidMesh;
+
+        // 입자 시스템 배열
+        const particles = {
+            photons: [],
+            co2: [],
+            oxygen: [],
+            rootGlucose: [],
+            waterDrops: []
+        };
+
+        let lastFrameTime = performance.now();
+
+        /**
+         * ============================================================================
+         * 2. Three.js 초기화 및 창가 실험실 3D 씬 구축
+         * ============================================================================
+         */
+        function initScene() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xdbeafe);
+            scene.fog = new THREE.FogExp2(0xe0f2fe, 0.014);
+
+            camera = new THREE.PerspectiveCamera(44, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.copy(cameraRig.currentPos);
+            camera.lookAt(cameraRig.currentLookAt);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.08;
+            container.appendChild(renderer.domElement);
+
+            setupLights();
+            buildWindowRoom();
+            buildPotAndPlant('A', -1.9);
+            buildPotAndPlant('B', 1.9);
+            buildGlucoseAmpoule(1.9);
+            buildShadowBox(1.9);
+            buildSunRays();
+            initAllParticles();
+
+            // 초기 0일차 관찰 스냅샷 자동 기록
+            recordObservationSnapshot(false, true);
+
+            window.addEventListener('resize', onResize);
+
+            // 키보드 단축키: 'A' (화분 A 확대/취소), 'B' (화분 B 확대/취소), 'H' (전체 UI 토글)
+            window.addEventListener('keydown', (e) => {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                const key = e.key.toLowerCase();
+                if (key === 'a' || e.key === 'ㅁ') {
+                    toggleCameraZoom('A');
+                } else if (key === 'b' || e.key === 'ㅠ') {
+                    toggleCameraZoom('B');
+                } else if (key === 'h' || e.key === 'ㅗ') {
+                    toggleAllUI();
+                }
+            });
+        }
+
+        function setupLights() {
+            hemiLight = new THREE.HemisphereLight(0xfffbeb, 0xd6d3d1, 0.7);
+            hemiLight.position.set(0, 10, 0);
+            scene.add(hemiLight);
+
+            const ambient = new THREE.AmbientLight(0xffffff, 0.28);
+            scene.add(ambient);
+
+            sunLight = new THREE.DirectionalLight(0xfff4cc, 1.85);
+            sunLight.position.set(-4.5, 8.5, -7.5);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            sunLight.shadow.camera.near = 1;
+            sunLight.shadow.camera.far = 25;
+            const d = 6.5;
+            sunLight.shadow.camera.left = -d;
+            sunLight.shadow.camera.right = d;
+            sunLight.shadow.camera.top = d;
+            sunLight.shadow.camera.bottom = -d;
+            sunLight.shadow.bias = -0.0005;
+            scene.add(sunLight);
+        }
+
+        function buildWindowRoom() {
+            const roomGroup = new THREE.Group();
+
+            // 원목 창턱 선반
+            const woodMat = new THREE.MeshStandardMaterial({ color: 0xc08253, roughness: 0.55, metalness: 0.05 });
+            const sill = new THREE.Mesh(new THREE.BoxGeometry(11.6, 0.45, 3.8), woodMat);
+            sill.position.set(0, -0.225, 0.25);
+            sill.receiveShadow = true;
+            sill.castShadow = true;
+            roomGroup.add(sill);
+
+            const trim = new THREE.Mesh(new THREE.BoxGeometry(11.8, 0.14, 0.24), woodMat);
+            trim.position.set(0, -0.07, 2.08);
+            trim.receiveShadow = true;
+            roomGroup.add(trim);
+
+            // 실내 벽면
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0xf7f3eb, roughness: 0.9 });
+            const wallBottom = new THREE.Mesh(new THREE.BoxGeometry(26, 5, 0.6), wallMat);
+            wallBottom.position.set(0, -2.9, -1.3);
+            wallBottom.receiveShadow = true;
+            roomGroup.add(wallBottom);
+
+            const wallLeft = new THREE.Mesh(new THREE.BoxGeometry(8, 13, 0.6), wallMat);
+            wallLeft.position.set(-8.6, 3.8, -1.3);
+            wallLeft.receiveShadow = true;
+            roomGroup.add(wallLeft);
+
+            const wallRight = new THREE.Mesh(new THREE.BoxGeometry(8, 13, 0.6), wallMat);
+            wallRight.position.set(8.6, 3.8, -1.3);
+            wallRight.receiveShadow = true;
+            roomGroup.add(wallRight);
+
+            const wallTop = new THREE.Mesh(new THREE.BoxGeometry(26, 4.5, 0.6), wallMat);
+            wallTop.position.set(0, 8.6, -1.3);
+            roomGroup.add(wallTop);
+
+            // 화이트 창틀 프레임
+            const frameMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35 });
+            const fTop = new THREE.Mesh(new THREE.BoxGeometry(9.5, 0.36, 0.45), frameMat);
+            fTop.position.set(0, 6.2, -1.3);
+            fTop.castShadow = true;
+            roomGroup.add(fTop);
+
+            const fBottom = new THREE.Mesh(new THREE.BoxGeometry(9.5, 0.24, 0.45), frameMat);
+            fBottom.position.set(0, 0.12, -1.3);
+            fBottom.receiveShadow = true;
+            roomGroup.add(fBottom);
+
+            const fLeft = new THREE.Mesh(new THREE.BoxGeometry(0.36, 6.4, 0.45), frameMat);
+            fLeft.position.set(-4.6, 3.2, -1.3);
+            fLeft.castShadow = true;
+            roomGroup.add(fLeft);
+
+            const fRight = new THREE.Mesh(new THREE.BoxGeometry(0.36, 6.4, 0.45), frameMat);
+            fRight.position.set(4.6, 3.2, -1.3);
+            fRight.castShadow = true;
+            roomGroup.add(fRight);
+
+            const mullionV = new THREE.Mesh(new THREE.BoxGeometry(0.18, 6.1, 0.28), frameMat);
+            mullionV.position.set(0, 3.2, -1.3);
+            mullionV.castShadow = true;
+            roomGroup.add(mullionV);
+
+            const mullionH = new THREE.Mesh(new THREE.BoxGeometry(9.1, 0.16, 0.28), frameMat);
+            mullionH.position.set(0, 3.5, -1.3);
+            mullionH.castShadow = true;
+            roomGroup.add(mullionH);
+
+            const glassMesh = new THREE.Mesh(
+                new THREE.PlaneGeometry(9.1, 6.1),
+                new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.1, roughness: 0.1 })
+            );
+            glassMesh.position.set(0, 3.2, -1.3);
+            roomGroup.add(glassMesh);
+
+            // 창밖 언덕, 구름, 태양
+            const outdoor = new THREE.Group();
+            outdoor.position.set(0, 0, -14);
+
+            const hill1 = new THREE.Mesh(
+                new THREE.SphereGeometry(12, 32, 16),
+                new THREE.MeshLambertMaterial({ color: 0x86efac })
+            );
+            hill1.scale.set(2.3, 0.6, 0.5);
+            hill1.position.set(-6, -4.5, -2);
+            outdoor.add(hill1);
+
+            const hill2 = new THREE.Mesh(
+                new THREE.SphereGeometry(10, 32, 16),
+                new THREE.MeshLambertMaterial({ color: 0x4ade80 })
+            );
+            hill2.scale.set(2.5, 0.55, 0.5);
+            hill2.position.set(7, -4.8, 0);
+            outdoor.add(hill2);
+
+            const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+            [[-6, 7.8, -3, 1.1], [5.8, 8.4, -4, 1.3], [0.2, 7.0, -5, 0.85]].forEach(([cx, cy, cz, cs]) => {
+                const cg = new THREE.Group();
+                const g = new THREE.SphereGeometry(1, 16, 16);
+                const m1 = new THREE.Mesh(g, cloudMat);
+                const m2 = new THREE.Mesh(g, cloudMat);
+                m2.position.set(1.1, -0.2, 0);
+                m2.scale.setScalar(0.8);
+                const m3 = new THREE.Mesh(g, cloudMat);
+                m3.position.set(-1.0, -0.25, 0.1);
+                m3.scale.setScalar(0.75);
+                cg.add(m1, m2, m3);
+                cg.position.set(cx, cy, cz);
+                cg.scale.setScalar(cs);
+                outdoor.add(cg);
+            });
+
+            const sunSphere = new THREE.Mesh(
+                new THREE.SphereGeometry(1.5, 24, 24),
+                new THREE.MeshBasicMaterial({ color: 0xfef08a })
+            );
+            sunSphere.name = 'outdoorSun';
+            sunSphere.position.set(-5, 9.5, -6);
+            outdoor.add(sunSphere);
+
+            roomGroup.add(outdoor);
+            scene.add(roomGroup);
+        }
+
+        /**
+         * ============================================================================
+         * 3. 테라코타 화분 + 루꼴라 3D 모델 생성
+         * ============================================================================
+         */
+        function buildPotAndPlant(id, xPos) {
+            const group = new THREE.Group();
+            group.position.set(xPos, 0, 0.35);
+            group.userData = { potId: id };
+
+            const terraMat = new THREE.MeshStandardMaterial({ color: 0xc96648, roughness: 0.75, metalness: 0.04 });
+
+            const saucer = new THREE.Mesh(new THREE.CylinderGeometry(0.96, 0.84, 0.14, 32), terraMat);
+            saucer.position.y = 0.07;
+            saucer.castShadow = true;
+            saucer.receiveShadow = true;
+            group.add(saucer);
+
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.92, 0.68, 1.25, 32), terraMat);
+            body.position.y = 0.72;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            body.userData = { potId: id };
+            group.add(body);
+
+            const rim = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 0.98, 0.22, 32), terraMat);
+            rim.position.y = 1.32;
+            rim.castShadow = true;
+            rim.receiveShadow = true;
+            rim.userData = { potId: id };
+            group.add(rim);
+
+            const soilMat = new THREE.MeshStandardMaterial({ color: 0x452c1e, roughness: 0.95 });
+            const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.88, 0.85, 0.16, 32), soilMat);
+            soil.position.y = 1.28;
+            soil.receiveShadow = true;
+            group.add(soil);
+            soilMeshes[id] = soil;
+
+            // 화분 전면 3D 라벨 뱃지
+            const labelTex = createPotLabelTexture(
+                id === 'A' ? '화분 A (대조군)' : '화분 B (비교군)',
+                id === 'A' ? '햇빛 O · 광합성' : '햇빛 X · 포도당 앰플',
+                id === 'A' ? '#059669' : '#d97706'
+            );
+            const badge = new THREE.Mesh(
+                new THREE.BoxGeometry(0.95, 0.42, 0.05),
+                new THREE.MeshStandardMaterial({ map: labelTex, roughness: 0.4 })
+            );
+            badge.position.set(0, 0.68, 0.85);
+            badge.rotation.x = -0.18;
+            group.add(badge);
+
+            const plantRoot = new THREE.Group();
+            plantRoot.position.y = 1.34;
+            group.add(plantRoot);
+
+            const plantModel = createRucolaPlantMesh(id);
+            plantRoot.add(plantModel);
+            plantGroups[id] = plantModel;
+            potGroups[id] = group;
+
+            scene.add(group);
+        }
+
+        function createPotLabelTexture(title, sub, bgColor) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 112;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = bgColor;
+            ctx.beginPath();
+            ctx.roundRect(0, 0, 256, 112, 18);
+            ctx.fill();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 30px "Noto Sans KR", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(title, 128, 48);
+
+            ctx.fillStyle = '#fef3c7';
+            ctx.font = 'bold 21px "Noto Sans KR", sans-serif';
+            ctx.fillText(sub, 128, 86);
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createRucolaLeafGeometry() {
+            const shape = new THREE.Shape();
+            // 루꼴라(아루굴라) 특유의 깊게 갈라진 깃꼴(우상 심열) 잎 실루엣
+            shape.moveTo(0, 0);
+            shape.bezierCurveTo(0.03, 0.12, 0.14, 0.14, 0.13, 0.23);
+            shape.bezierCurveTo(0.11, 0.28, 0.04, 0.27, 0.05, 0.32); // 첫 번째 만입
+            shape.bezierCurveTo(0.07, 0.38, 0.22, 0.39, 0.21, 0.50);
+            shape.bezierCurveTo(0.19, 0.56, 0.06, 0.54, 0.07, 0.60); // 두 번째 만입
+            shape.bezierCurveTo(0.09, 0.67, 0.27, 0.69, 0.25, 0.82);
+            shape.bezierCurveTo(0.22, 0.90, 0.10, 0.89, 0.11, 0.94); // 세 번째 만입
+            shape.bezierCurveTo(0.16, 1.04, 0.14, 1.18, 0.0, 1.22);  // 둥근 정단 열편
+            shape.bezierCurveTo(-0.14, 1.18, -0.16, 1.04, -0.11, 0.94);
+            shape.bezierCurveTo(-0.10, 0.89, -0.22, 0.90, -0.25, 0.82);
+            shape.bezierCurveTo(-0.27, 0.69, -0.09, 0.67, -0.07, 0.60);
+            shape.bezierCurveTo(-0.06, 0.54, -0.19, 0.56, -0.21, 0.50);
+            shape.bezierCurveTo(-0.22, 0.39, -0.07, 0.38, -0.05, 0.32);
+            shape.bezierCurveTo(-0.04, 0.27, -0.11, 0.28, -0.13, 0.23);
+            shape.bezierCurveTo(-0.14, 0.14, -0.03, 0.12, 0, 0);
+
+            const geo = new THREE.ExtrudeGeometry(shape, {
+                steps: 2,
+                depth: 0.014,
+                bevelEnabled: true,
+                bevelThickness: 0.006,
+                bevelSize: 0.008,
+                bevelSegments: 2
+            });
+
+            const pos = geo.attributes.position;
+            const uvs = geo.attributes.uv;
+            for (let i = 0; i < pos.count; i++) {
+                const x = pos.getX(i);
+                const y = pos.getY(i);
+                const z = pos.getZ(i);
+                const safeY = Math.max(0, y);
+
+                // UV 좌표를 [0, 1] 범위로 정규화하여 잎맥 텍스처 매핑
+                uvs.setXY(i, (x + 0.3) / 0.6, Math.min(1, safeY / 1.25));
+
+                // 자연스러운 아치형 굽음 + 가장자리 물결 굴곡(3D 볼륨감)
+                const arch = -Math.pow(safeY, 1.65) * 0.28 + Math.abs(x) * 0.24;
+                const wave = Math.sin(safeY * 14.0) * Math.abs(x) * 0.08;
+                pos.setZ(i, z + arch + wave);
+            }
+            uvs.needsUpdate = true;
+            geo.computeVertexNormals();
+            geo.computeBoundingSphere();
+            return geo;
+        }
+
+        // 어린 모종용 하트형 떡잎(Cotyledon) 지오메트리
+        function createCotyledonGeometry() {
+            const shape = new THREE.Shape();
+            shape.moveTo(0, 0);
+            shape.bezierCurveTo(0.08, 0.06, 0.18, 0.20, 0.14, 0.32);
+            shape.bezierCurveTo(0.10, 0.40, 0.02, 0.36, 0.0, 0.31);
+            shape.bezierCurveTo(-0.02, 0.36, -0.10, 0.40, -0.14, 0.32);
+            shape.bezierCurveTo(-0.18, 0.20, -0.08, 0.06, 0, 0);
+
+            const geo = new THREE.ExtrudeGeometry(shape, {
+                steps: 1,
+                depth: 0.012,
+                bevelEnabled: true,
+                bevelThickness: 0.005,
+                bevelSize: 0.006,
+                bevelSegments: 2
+            });
+            const pos = geo.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                const x = pos.getX(i);
+                const y = Math.max(0, pos.getY(i));
+                const z = pos.getZ(i);
+                pos.setZ(i, z - Math.pow(y, 1.5) * 0.15 + Math.abs(x) * 0.12);
+            }
+            geo.computeVertexNormals();
+            geo.computeBoundingSphere();
+            return geo;
+        }
+
+        // 고해상도 루꼴라 잎맥(주맥/측맥/표면 질감) 프로시저럴 텍스처
+        function createRucolaLeafTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            // 기본 밝은 엽록소 바탕 (재질 color와 곱해져 입체적인 명암 표현)
+            const grad = ctx.createLinearGradient(0, 512, 0, 0);
+            grad.addColorStop(0, '#dcfce7');
+            grad.addColorStop(0.5, '#ffffff');
+            grad.addColorStop(1, '#f0fdf4');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 256, 512);
+
+            // 중앙 주맥(Midrib)
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+            ctx.lineWidth = 7;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(128, 505);
+            ctx.quadraticCurveTo(126, 260, 128, 28);
+            ctx.stroke();
+
+            // 좌우 측맥(Lateral veins)
+            ctx.lineWidth = 2.6;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.58)';
+            for (let y = 450; y >= 75; y -= 42) {
+                const spread = 68 + Math.sin(y * 0.02) * 18;
+                ctx.beginPath();
+                ctx.moveTo(128, y);
+                ctx.quadraticCurveTo(128 - spread * 0.5, y - 16, 128 - spread, y - 42);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(128, y - 10);
+                ctx.quadraticCurveTo(128 + spread * 0.5, y - 26, 128 + spread, y - 52);
+                ctx.stroke();
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.needsUpdate = true;
+            return tex;
+        }
+
+        function createRucolaPlantMesh(id) {
+            const plantGroup = new THREE.Group();
+            const sharedLeafGeo = createRucolaLeafGeometry();
+            const sharedCotyledonGeo = createCotyledonGeometry();
+            const sharedLeafTex = createRucolaLeafTexture();
+
+            // 메인 줄기
+            const mainStemGeo = new THREE.CylinderGeometry(0.036, 0.064, 1.0, 16);
+            mainStemGeo.translate(0, 0.5, 0);
+            const mainStemMat = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.55 });
+            const mainStem = new THREE.Mesh(mainStemGeo, mainStemMat);
+            mainStem.castShadow = true;
+            plantGroup.add(mainStem);
+            plantGroup.userData.mainStem = mainStem;
+
+            // 어린 모종 떡잎 2장 (하단 마주보기)
+            const cotyledons = [];
+            [-1, 1].forEach((dir, idx) => {
+                const cotMat = new THREE.MeshStandardMaterial({
+                    color: 0x22c55e,
+                    roughness: 0.42,
+                    side: THREE.DoubleSide
+                });
+                const cot = new THREE.Mesh(sharedCotyledonGeo, cotMat);
+                cot.rotation.y = idx * Math.PI + 0.4;
+                cot.rotation.x = 0.95;
+                cot.position.y = 0.14;
+                cot.castShadow = true;
+                plantGroup.add(cot);
+                cotyledons.push(cot);
+            });
+            plantGroup.userData.cotyledons = cotyledons;
+
+            // 본잎 최대 18장 (황금각 나선 배치로 풍성한 로제트 입체감 구현)
+            const maxLeaves = 18;
+            const leafNodes = [];
+
+            for (let i = 0; i < maxLeaves; i++) {
+                const pivot = new THREE.Group();
+
+                // 잎자루(Petiole) - 본잎이 커질수록 잎자루도 길고 튼튼하게 성장
+                const petioleGeo = new THREE.CylinderGeometry(0.013, 0.025, 0.36, 10);
+                petioleGeo.translate(0, 0.18, 0);
+                const petioleMat = new THREE.MeshStandardMaterial({ color: 0x86efac, roughness: 0.55 });
+                const petiole = new THREE.Mesh(petioleGeo, petioleMat);
+                petiole.castShadow = true;
+
+                // 루꼴라 본잎 메시 (잎맥 텍스처 + 은은한 광택)
+                const leafMat = new THREE.MeshStandardMaterial({
+                    color: 0x16a34a,
+                    map: sharedLeafTex,
+                    roughness: 0.38,
+                    metalness: 0.03,
+                    side: THREE.DoubleSide
+                });
+                const leaf = new THREE.Mesh(sharedLeafGeo, leafMat);
+                leaf.position.y = 0.34;
+                leaf.castShadow = true;
+                leaf.receiveShadow = true;
+
+                pivot.add(petiole);
+                pivot.add(leaf);
+
+                const angleY = i * 2.39996; // 황금각(137.5도) 나선 배열
+                const heightRatio = i / maxLeaves;
+                // 바깥쪽 오래된 잎은 넓게 펼쳐지고, 안쪽 새순은 위로 솟아오름
+                const baseTilt = 0.98 - heightRatio * 0.68;
+
+                pivot.rotation.y = angleY;
+                plantGroup.add(pivot);
+
+                leafNodes.push({
+                    pivot,
+                    petiole,
+                    leaf,
+                    index: i,
+                    heightRatio,
+                    angleY,
+                    baseTilt
+                });
+            }
+
+            plantGroup.userData.leafNodes = leafNodes;
+            return plantGroup;
+        }
+
+        /**
+         * ============================================================================
+         * 4. 화분 B 흙에 꽂는 '포도당 함유 식물 영양제 앰플' 3D 모델
+         * ============================================================================
+         */
+        function buildGlucoseAmpoule(xPos) {
+            ampouleGroup = new THREE.Group();
+            ampouleGroup.position.set(xPos + 0.48, 1.48, 0.25);
+            ampouleGroup.rotation.z = -0.26;
+            ampouleGroup.rotation.x = 0.12;
+
+            const bottleMat = new THREE.MeshPhysicalMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.38,
+                roughness: 0.1,
+                metalness: 0.05
+            });
+
+            const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.012, 0.35, 16), bottleMat);
+            nozzle.position.y = -0.25;
+            ampouleGroup.add(nozzle);
+
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.58, 20), bottleMat);
+            body.position.y = 0.20;
+            body.castShadow = true;
+            ampouleGroup.add(body);
+
+            const capMat = new THREE.MeshStandardMaterial({ color: 0xea580c, roughness: 0.4 });
+            const cap = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), capMat);
+            cap.position.y = 0.49;
+            ampouleGroup.add(cap);
+
+            const liquidGeo = new THREE.CylinderGeometry(0.092, 0.076, 0.52, 20);
+            liquidGeo.translate(0, 0.26, 0);
+            const liquidMat = new THREE.MeshStandardMaterial({
+                color: 0xf97316,
+                emissive: 0xea580c,
+                emissiveIntensity: 0.45,
+                roughness: 0.2
+            });
+            ampouleLiquidMesh = new THREE.Mesh(liquidGeo, liquidMat);
+            ampouleLiquidMesh.position.y = -0.05;
+            ampouleGroup.add(ampouleLiquidMesh);
+
+            scene.add(ampouleGroup);
+        }
+
+        /**
+         * ============================================================================
+         * 5. 화분 B용 햇빛 차단 가림막 (박스 ON/OFF + 내부 투시 X-Ray 지원)
+         * ============================================================================
+         */
+        function buildShadowBox(xPos) {
+            shadowBoxGroup = new THREE.Group();
+            shadowBoxGroup.position.set(xPos, 1.38, 0.35);
+
+            const boxW = 2.45;
+            const boxH = 2.85;
+            const boxD = 2.45;
+            const thick = 0.07;
+
+            const createPanelMat = () => new THREE.MeshStandardMaterial({
+                color: 0x334155,
+                roughness: 0.7,
+                metalness: 0.1,
+                transparent: true,
+                opacity: 0.32,
+                depthWrite: false
+            });
+
+            shadowBoxPanels = [];
+
+            const top = new THREE.Mesh(new THREE.BoxGeometry(boxW, thick, boxD), createPanelMat());
+            top.position.y = boxH / 2;
+            top.castShadow = true;
+            shadowBoxGroup.add(top);
+            shadowBoxPanels.push(top);
+
+            const front = new THREE.Mesh(new THREE.BoxGeometry(boxW, boxH, thick), createPanelMat());
+            front.position.z = boxD / 2 - thick / 2;
+            shadowBoxGroup.add(front);
+            shadowBoxPanels.push(front);
+
+            const back = new THREE.Mesh(new THREE.BoxGeometry(boxW, boxH, thick), createPanelMat());
+            back.position.z = -boxD / 2 + thick / 2;
+            back.castShadow = true;
+            shadowBoxGroup.add(back);
+            shadowBoxPanels.push(back);
+
+            const left = new THREE.Mesh(new THREE.BoxGeometry(thick, boxH, boxD - thick * 2), createPanelMat());
+            left.position.x = -boxW / 2 + thick / 2;
+            left.castShadow = true;
+            shadowBoxGroup.add(left);
+            shadowBoxPanels.push(left);
+
+            const right = new THREE.Mesh(new THREE.BoxGeometry(thick, boxH, boxD - thick * 2), createPanelMat());
+            right.position.x = boxW / 2 - thick / 2;
+            right.castShadow = true;
+            shadowBoxGroup.add(right);
+            shadowBoxPanels.push(right);
+
+            const edgesGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(boxW, boxH, boxD));
+            const edgesMat = new THREE.LineBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.75 });
+            const wireframe = new THREE.LineSegments(edgesGeo, edgesMat);
+            shadowBoxGroup.add(wireframe);
+
+            scene.add(shadowBoxGroup);
+        }
+
+        /**
+         * ============================================================================
+         * 6. 햇빛 광선 & 실시간 광합성 / 포도당 흡수 입자 시스템
+         * ============================================================================
+         */
+        function buildSunRays() {
+            const rayMat = new THREE.MeshBasicMaterial({
+                color: 0xfef08a,
+                transparent: true,
+                opacity: 0.1,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending
+            });
+
+            [-1.9, 1.9].forEach((x, idx) => {
+                const ray = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.75, 7.6, 24, 1, true), rayMat.clone());
+                ray.position.set(x, 2.9, -0.5);
+                ray.rotation.x = 0.45;
+                ray.userData = { id: idx === 0 ? 'A' : 'B' };
+                scene.add(ray);
+                sunRayMeshes.push(ray);
+            });
+        }
+
+        function initAllParticles() {
+            const photonGeo = new THREE.SphereGeometry(0.042, 8, 8);
+            const photonMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+            for (let i = 0; i < 36; i++) {
+                const m = new THREE.Mesh(photonGeo, photonMat);
+                const pid = i < 18 ? 'A' : 'B';
+                resetPhoton(m, pid, true);
+                scene.add(m);
+                particles.photons.push(m);
+            }
+
+            const co2Geo = new THREE.SphereGeometry(0.036, 8, 8);
+            const co2Mat = new THREE.MeshBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.85 });
+            for (let i = 0; i < 32; i++) {
+                const m = new THREE.Mesh(co2Geo, co2Mat);
+                const pid = i < 16 ? 'A' : 'B';
+                resetCO2(m, pid, true);
+                scene.add(m);
+                particles.co2.push(m);
+            }
+
+            const o2Geo = new THREE.SphereGeometry(0.052, 10, 10);
+            const o2Mat = new THREE.MeshPhysicalMaterial({
+                color: 0x38bdf8,
+                emissive: 0x0284c7,
+                emissiveIntensity: 0.45,
+                transparent: true,
+                opacity: 0.8
+            });
+            for (let i = 0; i < 30; i++) {
+                const m = new THREE.Mesh(o2Geo, o2Mat);
+                const pid = i < 15 ? 'A' : 'B';
+                resetOxygen(m, pid, true);
+                scene.add(m);
+                particles.oxygen.push(m);
+            }
+
+            const glucGeo = new THREE.SphereGeometry(0.046, 8, 8);
+            const glucMat = new THREE.MeshBasicMaterial({ color: 0xf97316 });
+            for (let i = 0; i < 24; i++) {
+                const m = new THREE.Mesh(glucGeo, glucMat);
+                resetGlucoseParticle(m, true);
+                scene.add(m);
+                particles.rootGlucose.push(m);
+            }
+        }
+
+        function resetPhoton(m, pid, randY = false) {
+            const bx = pid === 'A' ? -1.9 : 1.9;
+            const sy = randY ? (1.8 + Math.random() * 2.5) : (3.8 + Math.random() * 1.1);
+            m.position.set(bx + (Math.random() - 0.5) * 1.0, sy, 0.35 + (Math.random() - 0.5) * 1.0 - (sy - 1.5) * 0.35);
+            m.userData = { pid, speed: 1.0 + Math.random() * 0.6 };
+        }
+
+        function resetCO2(m, pid, rand = false) {
+            const bx = pid === 'A' ? -1.9 : 1.9;
+            const angle = Math.random() * Math.PI * 2;
+            const radius = rand ? (0.2 + Math.random() * 0.75) : (0.65 + Math.random() * 0.3);
+            m.position.set(
+                bx + Math.cos(angle) * radius,
+                1.55 + Math.random() * 1.1,
+                0.35 + Math.sin(angle) * radius
+            );
+            m.userData = { pid, speed: 0.45 + Math.random() * 0.35, phase: Math.random() * 6.28 };
+        }
+
+        function resetOxygen(m, pid, randY = false) {
+            const bx = pid === 'A' ? -1.9 : 1.9;
+            const sy = randY ? (1.6 + Math.random() * 1.6) : (1.55 + Math.random() * 0.35);
+            m.position.set(bx + (Math.random() - 0.5) * 0.85, sy, 0.35 + (Math.random() - 0.5) * 0.85);
+            m.userData = { pid, speed: 0.65 + Math.random() * 0.45, phase: Math.random() * 6.28, maxY: 3.4 + Math.random() * 0.7 };
+        }
+
+        function resetGlucoseParticle(m, randProgress = false) {
+            m.userData = {
+                progress: randProgress ? Math.random() : 0,
+                speed: 0.45 + Math.random() * 0.25,
+                offsetAngle: Math.random() * Math.PI * 2
+            };
+            updateGlucoseParticlePosition(m);
+        }
+
+        function updateGlucoseParticlePosition(m) {
+            const t = m.userData.progress;
+            const baseX = 1.9;
+            const baseZ = 0.35;
+            if (t < 0.35) {
+                const subT = t / 0.35;
+                m.position.set(
+                    2.32 - subT * 0.42,
+                    1.32 + Math.sin(subT * Math.PI) * 0.04,
+                    baseZ + 0.22 * (1 - subT)
+                );
+            } else {
+                const subT = (t - 0.35) / 0.65;
+                const maxH = 1.35 + (simState.pots.B.stemLengthCm / 15) * 1.6;
+                m.position.set(
+                    baseX + Math.cos(m.userData.offsetAngle + subT * 4) * 0.06,
+                    1.34 + subT * (maxH - 1.34),
+                    baseZ + Math.sin(m.userData.offsetAngle + subT * 4) * 0.06
+                );
+            }
+        }
+
+        function spawnWaterDrops() {
+            const dropGeo = new THREE.SphereGeometry(0.042, 8, 8);
+            const dropMat = new THREE.MeshBasicMaterial({ color: 0x0ea5e9 });
+            [-1.9, 1.9].forEach(bx => {
+                for (let i = 0; i < 18; i++) {
+                    const d = new THREE.Mesh(dropGeo, dropMat);
+                    d.position.set(bx + (Math.random() - 0.5) * 0.95, 2.5 + Math.random() * 1.1, 0.35 + (Math.random() - 0.5) * 0.95);
+                    d.userData = { vy: 2.6 + Math.random() * 1.2 };
+                    scene.add(d);
+                    particles.waterDrops.push(d);
+                }
+            });
+        }
+
+        /**
+         * ============================================================================
+         * 7. 생물학 시뮬레이션 엔진
+         * ============================================================================
+         */
+        function stepSimulation(deltaHours) {
+            if (deltaHours <= 0) return;
+
+            simState.totalHours += deltaHours;
+            const currentDay = Math.floor(simState.totalHours / 24);
+
+            const hourOfDay = simState.totalHours % 24;
+            if (hourOfDay >= 6 && hourOfDay <= 19) {
+                const rad = ((hourOfDay - 6) / 13) * Math.PI;
+                simState.sunIntensity = Math.max(0.2, Math.sin(rad));
+            } else {
+                simState.sunIntensity = 0;
+            }
+
+            // 변인통제: 동일 급수 유지
+            if (simState.pots.A.water < 45 || simState.pots.B.water < 45) {
+                simState.pots.A.water = 85;
+                simState.pots.B.water = 85;
+            }
+
+            // 자동 영양제 주기(3일마다) 주입
+            const autoChk = document.getElementById('auto-ampoule-chk');
+            if (autoChk && autoChk.checked && currentDay >= simState.lastAutoAmpouleDay + 3) {
+                simState.lastAutoAmpouleDay = currentDay;
+                injectGlucoseAmpoule(true);
+            }
+
+            // 1주(7일) 단위 자동 관찰 스냅샷 기록 (1~4주)
+            const currentWeek = Math.floor(currentDay / 7);
+            if (currentWeek > simState.lastRecordedWeek && currentWeek <= 4) {
+                simState.lastRecordedWeek = currentWeek;
+                recordObservationSnapshot(false, true);
+                showToast(`${currentWeek}주차(${currentWeek * 7}일차) 관찰 데이터가 탐구보고서에 자동 기록되었습니다.`);
+            }
+
+            // --- [화분 A: 대조군 (햇빛 O / 광합성)] ---
+            const potA = simState.pots.A;
+            potA.water = Math.max(15, potA.water - 0.65 * deltaHours);
+            if (simState.sunIntensity > 0.05) {
+                potA.photosynthesis = Math.round(simState.sunIntensity * Math.min(1, potA.water / 40) * 100);
+                potA.chlorophyll = Math.min(1.0, potA.chlorophyll + 0.008 * deltaHours);
+                potA.etiolation = Math.max(0, potA.etiolation - 0.5 * deltaHours);
+                potA.glucoseEnergy = Math.min(100, potA.glucoseEnergy + 1.2 * deltaHours);
+
+                const growRate = (potA.photosynthesis / 100) * deltaHours;
+                potA.leafSizeCm = Math.min(8.8, potA.leafSizeCm + 0.014 * growRate);
+                potA.stemLengthCm = Math.min(12.0, potA.stemLengthCm + 0.018 * growRate);
+                potA.stemThickMm = Math.min(4.4, potA.stemThickMm + 0.0055 * growRate);
+                potA.leafCount = Math.min(16, Math.floor(4 + ((potA.leafSizeCm - 2.2) / 6.6) * 12));
+            } else {
+                potA.photosynthesis = 0;
+                potA.glucoseEnergy = Math.max(30, potA.glucoseEnergy - 0.4 * deltaHours);
+            }
+
+            // --- [화분 B: 비교군 (가림막 ON/OFF + 포도당 영양제)] ---
+            const potB = simState.pots.B;
+            potB.water = Math.max(15, potB.water - 0.65 * deltaHours);
+
+            const isLightBlocked = simState.boxCovered;
+            const effectiveLightB = isLightBlocked ? 0 : simState.sunIntensity;
+
+            if (potB.ampouleRemaining > 0) {
+                const consume = 0.55 * deltaHours;
+                potB.ampouleRemaining = Math.max(0, potB.ampouleRemaining - consume);
+                potB.glucoseEnergy = Math.min(95, potB.glucoseEnergy + 1.1 * deltaHours);
+            } else {
+                potB.glucoseEnergy = Math.max(5, potB.glucoseEnergy - 0.8 * deltaHours);
+            }
+
+            if (isLightBlocked) {
+                potB.photosynthesis = 0;
+                potB.chlorophyll = Math.max(0.10, potB.chlorophyll - 0.0045 * deltaHours);
+                potB.etiolation = Math.min(100, potB.etiolation + 0.35 * deltaHours);
+
+                if (potB.glucoseEnergy > 15) {
+                    const ampouleFactor = potB.glucoseEnergy / 100;
+                    potB.leafSizeCm = Math.min(3.6, potB.leafSizeCm + 0.0032 * ampouleFactor * deltaHours);
+                    potB.stemLengthCm = Math.min(19.0, potB.stemLengthCm + 0.034 * ampouleFactor * deltaHours);
+                    potB.stemThickMm = Math.max(1.1, potB.stemThickMm - 0.0012 * deltaHours);
+                    potB.leafCount = Math.min(8, Math.floor(4 + ((potB.leafSizeCm - 2.2) / 1.4) * 4));
+                }
+            } else {
+                if (effectiveLightB > 0.05) {
+                    potB.photosynthesis = Math.round(effectiveLightB * Math.min(1, potB.water / 40) * 100);
+                    potB.chlorophyll = Math.min(1.0, potB.chlorophyll + 0.007 * deltaHours);
+                    potB.etiolation = Math.max(0, potB.etiolation - 0.3 * deltaHours);
+                    potB.leafSizeCm = Math.min(8.5, potB.leafSizeCm + 0.011 * deltaHours);
+                    potB.stemThickMm = Math.min(4.0, potB.stemThickMm + 0.004 * deltaHours);
+                    potB.leafCount = Math.min(15, Math.floor(4 + ((potB.leafSizeCm - 2.2) / 6.3) * 11));
+                } else {
+                    potB.photosynthesis = 0;
+                }
+            }
+        }
+
+        /**
+         * ============================================================================
+         * 8. 3D 비주얼 업데이트
+         * ============================================================================
+         */
+        function updateVisuals(dt) {
+            const hourOfDay = simState.totalHours % 24;
+            const intensity = simState.sunIntensity;
+
+            const dayColor = new THREE.Color(0xdbeafe);
+            const duskColor = new THREE.Color(0xfed7aa);
+            const nightColor = new THREE.Color(0x0f172a);
+
+            const targetSky = intensity > 0.45
+                ? dayColor
+                : (intensity > 0.02 ? duskColor.clone().lerp(dayColor, intensity / 0.45) : nightColor);
+
+            scene.background.lerp(targetSky, 0.12);
+            scene.fog.color.copy(scene.background);
+
+            sunLight.intensity = 0.18 + intensity * 1.85;
+            hemiLight.intensity = 0.25 + intensity * 0.55;
+
+            const outdoorSun = scene.getObjectByName('outdoorSun');
+            if (outdoorSun) {
+                const p = Math.max(0, Math.min(1, (hourOfDay - 6) / 13));
+                outdoorSun.position.x = -7 + p * 14;
+                outdoorSun.position.y = 4.2 + Math.sin(p * Math.PI) * 6.5;
+                outdoorSun.visible = (hourOfDay >= 5.5 && hourOfDay <= 19.5);
+                sunLight.position.x = -5 + p * 10;
+            }
+
+            sunRayMeshes.forEach(ray => {
+                const blocked = (ray.userData.id === 'B' && simState.boxCovered && simState.boxAnimProgress > 0.5);
+                const targetOp = blocked ? 0.0 : (intensity * 0.11);
+                ray.material.opacity += (targetOp - ray.material.opacity) * 0.15;
+            });
+
+            const targetBox = simState.boxCovered ? 1.0 : 0.0;
+            simState.boxAnimProgress += (targetBox - simState.boxAnimProgress) * Math.min(1, dt * 7);
+
+            if (simState.boxAnimProgress > 0.01) {
+                shadowBoxGroup.visible = true;
+                shadowBoxGroup.position.y = 4.7 - simState.boxAnimProgress * 3.32;
+                const targetOpacity = simState.xrayMode ? 0.28 : 0.96;
+                shadowBoxPanels.forEach(panel => {
+                    panel.material.opacity += (targetOpacity - panel.material.opacity) * 0.2;
+                    panel.material.depthWrite = !simState.xrayMode;
+                });
+            } else {
+                shadowBoxGroup.visible = false;
+            }
+
+            // 앰플 용액 잔여량 및 위치 업데이트
+            if (ampouleLiquidMesh) {
+                const remainRatio = Math.max(0.02, simState.pots.B.ampouleRemaining / 100);
+                ampouleLiquidMesh.scale.y = remainRatio;
+            }
+
+            // 토양 수분 색상 및 루꼴라 식물 생장 3D 업데이트
+            const timeNow = performance.now() * 0.002;
+            ['A', 'B'].forEach(id => {
+                const pot = simState.pots[id];
+                const soil = soilMeshes[id];
+                if (soil) {
+                    const dryColor = new THREE.Color(0x6b442a);
+                    const wetColor = new THREE.Color(0x2d1b10);
+                    soil.material.color.copy(dryColor).lerp(wetColor, pot.water / 100);
+                }
+
+                const plant = plantGroups[id];
+                if (!plant) return;
+
+                const mainStem = plant.userData.mainStem;
+                const leafNodes = plant.userData.leafNodes;
+
+                // 엽록소 수치에 따른 잎·줄기 색깔 보간 (짙은 초록 -> 연노랑 황화 현상)
+                const healthyLeafColor = new THREE.Color(0x15803d);
+                const yellowLeafColor = new THREE.Color(0xeab308);
+                const leafColor = yellowLeafColor.clone().lerp(healthyLeafColor, pot.chlorophyll);
+                const stemColor = leafColor.clone().offsetHSL(0, -0.08, 0.14);
+
+                // 생장 단계별 크기 및 굵기 스케일 계산 (초기 모종 -> 성체 대비 극대화)
+                const stemHeight3D = 0.24 + Math.pow(pot.stemLengthCm / 12.0, 1.15) * 1.65;
+                const stemRadiusScale = 0.42 + (pot.stemThickMm / 4.2) * 1.35;
+
+                mainStem.scale.set(stemRadiusScale, stemHeight3D, stemRadiusScale);
+                mainStem.material.color.copy(stemColor);
+
+                // 웃자람(도장) 시 줄기가 힘없이 휘어짐
+                const bendAngle = (pot.etiolation / 100) * 0.46;
+                plant.rotation.z = -bendAngle;
+
+                // 떡잎 위치 및 색깔 업데이트
+                if (plant.userData.cotyledons) {
+                    plant.userData.cotyledons.forEach((cot, idx) => {
+                        cot.position.y = Math.min(0.32, stemHeight3D * 0.35);
+                        const cotScale = 0.75 + Math.min(0.45, (pot.leafSizeCm - 2.2) * 0.12);
+                        cot.scale.setScalar(cotScale);
+                        cot.material.color.copy(leafColor).offsetHSL(0, -0.05, 0.05);
+                    });
+                }
+
+                // 잎 크기(2.2cm -> 8.8cm)에 따른 3D 스케일 비약적 확장 (0.34배 -> 1.68배)
+                const growthNorm = Math.max(0, (pot.leafSizeCm - 2.0) / 6.8);
+                const leafScale = 0.34 + Math.pow(growthNorm, 0.92) * 1.34;
+
+                leafNodes.forEach(node => {
+                    if (node.index < pot.leafCount) {
+                        node.pivot.visible = true;
+
+                        // 로제트 구조: 아래쪽 잎은 풍성하게 퍼지고 새순은 줄기 상단에서 돋아남
+                        const nodeY = 0.08 + node.heightRatio * (stemHeight3D * 0.88);
+                        node.pivot.position.y = nodeY;
+
+                        // 바깥쪽 잎은 더 크고, 중심부 어린 새순은 아담하게 표현
+                        const maturityFactor = 1.12 - node.heightRatio * 0.38;
+                        const sizeFactor = leafScale * maturityFactor;
+
+                        const petioleLenScale = sizeFactor * (1 + pot.etiolation / 160);
+                        node.petiole.scale.set(stemRadiusScale * 0.85, petioleLenScale, stemRadiusScale * 0.85);
+                        node.leaf.position.y = 0.34 * petioleLenScale;
+
+                        // 웃자란 화분 B는 잎 폭이 좁고 빈약하게 자람
+                        const widthFactor = sizeFactor * (1 - (pot.etiolation / 100) * 0.28);
+                        node.leaf.scale.set(widthFactor, sizeFactor, sizeFactor);
+
+                        // 새순일수록 약간 연한 연둣빛, 성숙한 잎일수록 짙은 초록빛
+                        const leafShade = leafColor.clone().offsetHSL(0, 0, node.heightRatio * 0.06);
+                        node.leaf.material.color.copy(leafShade);
+                        node.petiole.material.color.copy(stemColor);
+
+                        // 웃자람 시 잎이 아래로 힘없이 축 처짐 + 미풍 흔들림
+                        const droop = (pot.etiolation / 100) * 0.58;
+                        const breeze = Math.sin(timeNow + node.index * 0.7) * 0.025;
+                        node.pivot.rotation.x = node.baseTilt + droop + breeze;
+                        node.pivot.rotation.z = Math.cos(timeNow * 0.8 + node.index) * 0.015;
+                    } else {
+                        node.pivot.visible = false;
+                    }
+                });
+            });
+
+            updateParticles(dt);
+        }
+
+        function updateParticles(dt) {
+            particles.photons.forEach(p => {
+                const pot = simState.pots[p.userData.pid];
+                if (pot.photosynthesis <= 10) {
+                    p.visible = false;
+                    return;
+                }
+                p.visible = true;
+                p.position.y -= p.userData.speed * dt * 1.45;
+                p.position.z += p.userData.speed * dt * 0.45;
+                if (p.position.y <= 1.55) resetPhoton(p, p.userData.pid, false);
+            });
+
+            particles.co2.forEach(c => {
+                const pid = c.userData.pid;
+                const pot = simState.pots[pid];
+                const bx = pid === 'A' ? -1.9 : 1.9;
+                c.userData.phase += dt * 2.2;
+
+                if (pot.photosynthesis > 15) {
+                    c.position.x += (bx - c.position.x) * dt * 1.1;
+                    c.position.z += (0.35 - c.position.z) * dt * 1.1;
+                    c.position.y += Math.sin(c.userData.phase) * 0.15 * dt;
+                    const dist = Math.hypot(c.position.x - bx, c.position.z - 0.35);
+                    if (dist < 0.16) resetCO2(c, pid, false);
+                } else {
+                    c.position.x += Math.cos(c.userData.phase) * 0.18 * dt;
+                    c.position.y += Math.sin(c.userData.phase * 0.8) * 0.14 * dt;
+                }
+            });
+
+            particles.oxygen.forEach(o => {
+                const pot = simState.pots[o.userData.pid];
+                if (pot.photosynthesis <= 15) {
+                    o.visible = false;
+                    return;
+                }
+                o.visible = true;
+                o.userData.phase += dt * 3;
+                o.position.y += o.userData.speed * dt * (0.6 + pot.photosynthesis / 120);
+                o.position.x += Math.sin(o.userData.phase) * 0.25 * dt;
+                if (o.position.y >= o.userData.maxY) resetOxygen(o, o.userData.pid, false);
+            });
+
+            const potB = simState.pots.B;
+            particles.rootGlucose.forEach(g => {
+                if (potB.ampouleRemaining <= 1) {
+                    g.visible = false;
+                    return;
+                }
+                g.visible = true;
+                g.userData.progress += g.userData.speed * dt;
+                if (g.userData.progress >= 1.0) {
+                    resetGlucoseParticle(g, false);
+                } else {
+                    updateGlucoseParticlePosition(g);
+                }
+            });
+
+            for (let i = particles.waterDrops.length - 1; i >= 0; i--) {
+                const d = particles.waterDrops[i];
+                d.position.y -= d.userData.vy * dt;
+                if (d.position.y <= 1.32) {
+                    scene.remove(d);
+                    particles.waterDrops.splice(i, 1);
+                }
+            }
+        }
+
+        /**
+         * ============================================================================
+         * 9. UI 업데이트, 상태창 토글 및 탐구보고서 기록 로직
+         * ============================================================================
+         */
+        function getLeafColorDescription(chlorophyll) {
+            if (chlorophyll >= 0.80) return { name: '짙은 초록', hex: '#15803d', textClass: 'text-neutral-900' };
+            if (chlorophyll >= 0.55) return { name: '연한 초록', hex: '#4ade80', textClass: 'text-neutral-900' };
+            if (chlorophyll >= 0.32) return { name: '황록색 (엽록소 감소)', hex: '#a3e635', textClass: 'text-neutral-900' };
+            return { name: '연노랑 (황화 현상)', hex: '#eab308', textClass: 'text-neutral-900' };
+        }
+
+        function updateUI() {
+            const totalDays = Math.floor(simState.totalHours / 24);
+            const week = Math.floor(totalDays / 7);
+            const hour = Math.floor(simState.totalHours % 24);
+            const min = Math.floor((simState.totalHours % 1) * 60);
+
+            document.getElementById('sim-clock-display').textContent =
+                `${week}주차 · ${totalDays}일차 ${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+
+            const weatherBadge = document.getElementById('time-weather-badge');
+            const lightInfo = document.getElementById('sim-light-info');
+            if (simState.sunIntensity > 0.5) {
+                weatherBadge.textContent = '주간';
+                weatherBadge.className = 'text-[11px] font-extrabold px-2 py-0.5 rounded bg-white text-neutral-900';
+                lightInfo.textContent = `창가 일조량: ${Math.round(simState.sunIntensity * 100)}% (광합성 최적)`;
+            } else if (simState.sunIntensity > 0.05) {
+                weatherBadge.textContent = '황혼';
+                weatherBadge.className = 'text-[11px] font-extrabold px-2 py-0.5 rounded bg-neutral-700 text-white border border-neutral-500';
+                lightInfo.textContent = `창가 일조량: ${Math.round(simState.sunIntensity * 100)}% (해질녘/아침)`;
+            } else {
+                weatherBadge.textContent = '야간';
+                weatherBadge.className = 'text-[11px] font-extrabold px-2 py-0.5 rounded bg-neutral-800 text-neutral-300 border border-neutral-600';
+                lightInfo.textContent = '야간 시간대: 일조량 0% (호흡 작용)';
+            }
+
+            // 화분 A UI
+            const potA = simState.pots.A;
+            const colA = getLeafColorDescription(potA.chlorophyll);
+            document.getElementById('metric-leafsize-a').textContent = potA.leafSizeCm.toFixed(1);
+            document.getElementById('metric-leafcnt-a').textContent = potA.leafCount;
+            document.getElementById('metric-stemlen-a').textContent = potA.stemLengthCm.toFixed(1);
+            document.getElementById('metric-stemthick-a').textContent = potA.stemThickMm.toFixed(1);
+            document.getElementById('swatch-a').style.backgroundColor = colA.hex;
+            document.getElementById('colorname-a').textContent = colA.name;
+            document.getElementById('colorname-a').className = `text-[11px] font-bold ${colA.textClass}`;
+
+            document.getElementById('photo-val-a').textContent = `${potA.photosynthesis}%`;
+            document.getElementById('photo-bar-a').style.width = `${potA.photosynthesis}%`;
+            document.getElementById('water-val-a').textContent = `${Math.round(potA.water)}%`;
+            document.getElementById('glucose-val-a').textContent = `${Math.round(potA.glucoseEnergy)}%`;
+
+            // 화분 B UI
+            const potB = simState.pots.B;
+            const colB = getLeafColorDescription(potB.chlorophyll);
+            document.getElementById('metric-leafsize-b').textContent = potB.leafSizeCm.toFixed(1);
+            document.getElementById('metric-leafcnt-b').textContent = potB.leafCount;
+            document.getElementById('metric-stemlen-b').textContent = potB.stemLengthCm.toFixed(1);
+            document.getElementById('metric-stemthick-b').textContent = potB.stemThickMm.toFixed(1);
+            document.getElementById('swatch-b').style.backgroundColor = colB.hex;
+            document.getElementById('colorname-b').textContent = colB.name;
+            document.getElementById('colorname-b').className = `text-[11px] font-bold ${colB.textClass}`;
+
+            document.getElementById('ampoule-level-text').textContent = `${Math.round(potB.ampouleRemaining)}%`;
+            document.getElementById('ampoule-count-text').textContent = `${potB.ampouleCount}회`;
+            document.getElementById('photo-val-b').textContent = `${potB.photosynthesis}%`;
+            const absorbPct = potB.ampouleRemaining > 0 ? Math.min(100, Math.round(60 + potB.ampouleRemaining * 0.4)) : 0;
+            document.getElementById('glucose-absorb-b').textContent = `${absorbPct}%`;
+            document.getElementById('glucose-bar-b').style.width = `${absorbPct}%`;
+            document.getElementById('water-val-b').textContent = `${Math.round(potB.water)}%`;
+            document.getElementById('etiolation-val-b').textContent = `${Math.round(potB.etiolation)}%`;
+
+            const badgeB = document.getElementById('badge-status-b');
+            const btnBox = document.getElementById('btn-box-toggle');
+            if (simState.boxCovered) {
+                badgeB.className = 'bg-neutral-900 text-white text-[10px] font-bold px-2 py-0.5 rounded';
+                badgeB.textContent = '가림막 ON · 광합성 X';
+                btnBox.textContent = '가림막 OFF';
+            } else {
+                badgeB.className = 'bg-neutral-100 text-neutral-900 border border-neutral-300 text-[10px] font-bold px-2 py-0.5 rounded';
+                badgeB.textContent = '가림막 OFF · 빛 노출';
+                btnBox.textContent = '가림막 ON';
+            }
+        }
+
+        /**
+         * 화분 A / B 개별 상태창 숨기기 및 열기 토글
+         */
+        function togglePotCard(potId) {
+            if (potId === 'A') {
+                simState.uiState.cardAVisible = !simState.uiState.cardAVisible;
+            } else if (potId === 'B') {
+                simState.uiState.cardBVisible = !simState.uiState.cardBVisible;
+            }
+            syncPotCardVisibility();
+        }
+
+        function showBothPotCards() {
+            simState.uiState.cardAVisible = true;
+            simState.uiState.cardBVisible = true;
+            syncPotCardVisibility();
+        }
+
+        function syncPotCardVisibility() {
+            const cardA = document.getElementById('card-pot-a');
+            const cardB = document.getElementById('card-pot-b');
+            const restoreBar = document.getElementById('pot-cards-restore-bar');
+            const restoreBtnA = document.getElementById('restore-btn-a');
+            const restoreBtnB = document.getElementById('restore-btn-b');
+
+            const { cardAVisible, cardBVisible } = simState.uiState;
+
+            cardA.classList.toggle('hidden', !cardAVisible);
+            cardB.classList.toggle('hidden', !cardBVisible);
+
+            if (!cardAVisible || !cardBVisible) {
+                restoreBar.classList.remove('hidden');
+                restoreBtnA.classList.toggle('hidden', cardAVisible);
+                restoreBtnB.classList.toggle('hidden', cardBVisible);
+            } else {
+                restoreBar.classList.add('hidden');
+            }
+        }
+
+        /**
+         * 키보드 'H' 키로 상단·하단 전체 HUD 패널 끄기/켜기
+         */
+        function toggleAllUI() {
+            simState.uiState.allHidden = !simState.uiState.allHidden;
+            const topHud = document.getElementById('top-hud-bar');
+            const bottomHud = document.getElementById('bottom-hud-bar');
+            const restoreAllBtn = document.getElementById('restore-all-hud-btn');
+
+            if (simState.uiState.allHidden) {
+                topHud.classList.add('hidden');
+                bottomHud.classList.add('hidden');
+                restoreAllBtn.classList.remove('hidden');
+            } else {
+                topHud.classList.remove('hidden');
+                bottomHud.classList.remove('hidden');
+                restoreAllBtn.classList.add('hidden');
+            }
+        }
+
+        /**
+         * 주차별 관찰 스냅샷 기록 (탐구보고서 테이블 반영)
+         */
+        function recordObservationSnapshot(notify = true, isMilestone = false) {
+            const totalDays = Math.floor(simState.totalHours / 24);
+            const week = Math.floor(totalDays / 7);
+            const label = isMilestone ? `${week}주차 (${totalDays}일차)` : `${totalDays}일차 수동측정`;
+
+            const potA = simState.pots.A;
+            const potB = simState.pots.B;
+            const colA = getLeafColorDescription(potA.chlorophyll);
+            const colB = getLeafColorDescription(potB.chlorophyll);
+
+            simState.records.push({
+                label,
+                day: totalDays,
+                A: {
+                    leafSize: potA.leafSizeCm.toFixed(1),
+                    leafCount: potA.leafCount,
+                    stemLen: potA.stemLengthCm.toFixed(1),
+                    stemThick: potA.stemThickMm.toFixed(1),
+                    colorName: colA.name,
+                    colorHex: colA.hex
+                },
+                B: {
+                    leafSize: potB.leafSizeCm.toFixed(1),
+                    leafCount: potB.leafCount,
+                    stemLen: potB.stemLengthCm.toFixed(1),
+                    stemThick: potB.stemThickMm.toFixed(1),
+                    colorName: colB.name,
+                    colorHex: colB.hex,
+                    ampouleCount: potB.ampouleCount
+                }
+            });
+
+            document.getElementById('record-count-badge').textContent = simState.records.length;
+            renderReportTable();
+
+            if (notify) {
+                showToast(`[${label}] 관찰 기록이 탐구보고서에 저장되었습니다.`);
+            }
+        }
+
+        function renderReportTable() {
+            const tbody = document.getElementById('report-table-body');
+            tbody.innerHTML = '';
+
+            simState.records.forEach(rec => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition';
+                tr.innerHTML = `
+                    <td class="py-2.5 px-3 font-bold text-slate-800">${rec.label}</td>
+                    <td class="py-2.5 px-3 bg-emerald-50/30 text-slate-700">${rec.A.leafSize}cm / <strong>${rec.A.leafCount}장</strong></td>
+                    <td class="py-2.5 px-3 bg-emerald-50/30 text-slate-700">${rec.A.stemLen}cm / <strong>${rec.A.stemThick}mm</strong></td>
+                    <td class="py-2.5 px-3 bg-emerald-50/30">
+                        <span class="inline-flex items-center gap-1.5 font-sans font-bold text-slate-700">
+                            <span class="w-3 h-3 rounded-full border border-black/20" style="background:${rec.A.colorHex}"></span>
+                            ${rec.A.colorName} <span class="text-[10px] text-slate-400 font-mono-num">(${rec.A.colorHex})</span>
+                        </span>
+                    </td>
+                    <td class="py-2.5 px-3 bg-amber-50/30 text-slate-700">${rec.B.leafSize}cm / <strong>${rec.B.leafCount}장</strong></td>
+                    <td class="py-2.5 px-3 bg-amber-50/30 text-rose-700">${rec.B.stemLen}cm / <strong>${rec.B.stemThick}mm</strong></td>
+                    <td class="py-2.5 px-3 bg-amber-50/30">
+                        <span class="inline-flex items-center gap-1.5 font-sans font-bold text-slate-700">
+                            <span class="w-3 h-3 rounded-full border border-black/20" style="background:${rec.B.colorHex}"></span>
+                            ${rec.B.colorName} <span class="text-[10px] text-orange-700 font-mono-num">(${rec.B.ampouleCount}회)</span>
+                        </span>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            const latest = simState.records[simState.records.length - 1];
+            const conclusionEl = document.getElementById('conclusion-text');
+            if (latest && latest.day >= 7) {
+                conclusionEl.innerHTML = `
+                    <strong>[가설 검증 결과 - ${latest.day}일차 기준]</strong><br>
+                    1. <strong>생장 가능 여부:</strong> 빛을 차단한 화분 B도 흙에 주입한 포도당 함유 영양제를 흡수하여 죽지 않고 줄기가 <strong>${latest.B.stemLen}cm</strong>까지 자랐습니다.<br>
+                    2. <strong>비정상적 생장(웃자람 및 황화 현상) 확인:</strong> 그러나 자연 광합성을 한 화분 A(잎 크기 ${latest.A.leafSize}cm, ${latest.A.leafCount}장, 굵기 ${latest.A.stemThick}mm, ${latest.A.colorName})와 비교할 때, 화분 B는 <strong>잎이 작고(${latest.B.leafSize}cm, ${latest.B.leafCount}장) 엽록소 부족으로 ${latest.B.colorName}을 띠며, 줄기는 가늘고(${latest.B.stemThick}mm) 비정상적으로 길게 웃자라는 모습</strong>을 보였습니다.<br>
+                    3. <strong>최종 결론:</strong> 인위적인 포도당 영양제 주입만으로 식물이 생존하고 자랄 수는 있지만, 빛(광합성)이 없으면 엽록소 합성과 정상적인 조직 발달이 이루어지지 않아 건강하게 자랄 수 없으므로 <strong>설정한 가설이 옳았음</strong>을 확인했습니다.
+                `;
+            }
+        }
+
+        /**
+         * ============================================================================
+         * 10. 사용자 버튼 인터랙션 함수
+         * ============================================================================
+         */
+        function setTimeScale(scale) {
+            simState.timeScale = scale;
+            document.querySelectorAll('.speed-btn').forEach(btn => {
+                btn.className = 'speed-btn px-2.5 py-1 rounded-lg text-xs font-bold text-neutral-600 hover:bg-white transition';
+            });
+            const activeBtn = document.getElementById(`btn-speed-${scale}`);
+            if (activeBtn) {
+                activeBtn.className = 'speed-btn px-2.5 py-1 rounded-lg text-xs font-bold bg-neutral-900 text-white shadow-sm transition';
+            }
+        }
+
+        function skipTimeDays(days) {
+            const totalHoursToSkip = days * 24;
+            const stepChunk = 2;
+            for (let h = 0; h < totalHoursToSkip; h += stepChunk) {
+                stepSimulation(stepChunk);
+            }
+            updateUI();
+            showToast(`${days}일(${days * 24}시간)을 스킵했습니다. 양쪽 화분의 생장 변화를 비교해 보세요.`);
+        }
+
+        function toggleShadowBox() {
+            simState.boxCovered = !simState.boxCovered;
+            updateUI();
+            if (simState.boxCovered) {
+                showToast('화분 B에 햇빛 차단 가림막을 덮었습니다. (광합성 중단)');
+            } else {
+                showToast('화분 B의 햇빛 차단 가림막을 열었습니다. (햇빛 노출)');
+            }
+        }
+
+        function toggleXrayMode() {
+            simState.xrayMode = !simState.xrayMode;
+            const btn = document.getElementById('btn-xray');
+            if (simState.xrayMode) {
+                btn.textContent = '투시 ON';
+                btn.className = 'bg-white hover:bg-neutral-100 text-neutral-900 border border-neutral-300 text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg transition';
+                showToast('가림막 투시 모드 ON: 가림막이 닫힌 상태에서도 내부 식물을 관찰합니다.');
+            } else {
+                btn.textContent = '투시 OFF';
+                btn.className = 'bg-neutral-200 hover:bg-neutral-300 text-neutral-800 border border-neutral-300 text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg transition';
+                showToast('가림막 투시 모드 OFF: 실제 불투명 박스 상태로 암실을 구현합니다.');
+            }
+        }
+
+        function injectGlucoseAmpoule(isAuto = false) {
+            const potB = simState.pots.B;
+            potB.ampouleRemaining = 100;
+            potB.ampouleCount += 1;
+            potB.glucoseEnergy = Math.min(100, potB.glucoseEnergy + 25);
+            updateUI();
+            if (!isAuto) {
+                showToast(`화분 B 흙에 새 포도당 영양제 앰플을 꽂았습니다. (누적 ${potB.ampouleCount}회 주입)`);
+            }
+        }
+
+        function waterBothPots() {
+            simState.pots.A.water = 95;
+            simState.pots.B.water = 95;
+            spawnWaterDrops();
+            updateUI();
+            showToast('변인통제 원칙에 따라 화분 A와 화분 B에 동일한 양의 물을 주었습니다.');
+        }
+
+        function toggleCameraZoom(potId) {
+            if (cameraRig.focusedPot === potId) {
+                resetCameraView();
+                showToast(`화분 ${potId} 확대를 취소하고 전체 화면으로 돌아왔습니다.`);
+                return;
+            }
+
+            cameraRig.focusedPot = potId;
+            const targetX = potId === 'A' ? -1.9 : 1.9;
+            cameraRig.targetLookAt.set(targetX, 1.65, 0.35);
+            cameraRig.targetPos.set(targetX, 3.05, 4.45);
+            updateZoomButtonLabels();
+            showToast(`화분 ${potId} 확대 모드 (다시 ${potId}키를 누르면 취소됩니다)`);
+        }
+
+        function resetCameraView() {
+            cameraRig.focusedPot = null;
+            cameraRig.targetLookAt.set(0, 1.45, 0.2);
+            cameraRig.targetPos.set(0, 4.3, 8.6);
+            updateZoomButtonLabels();
+        }
+
+        function updateZoomButtonLabels() {
+            const btnA = document.getElementById('btn-zoom-a');
+            const btnB = document.getElementById('btn-zoom-b');
+            if (btnA) {
+                btnA.textContent = cameraRig.focusedPot === 'A' ? '확대 취소 (A)' : '확대 (A)';
+                btnA.className = cameraRig.focusedPot === 'A'
+                    ? 'text-[10px] bg-neutral-900 text-white px-2 py-0.5 rounded font-bold transition'
+                    : 'text-[10px] bg-white hover:bg-neutral-100 text-neutral-800 border border-neutral-300 px-2 py-0.5 rounded font-semibold transition';
+            }
+            if (btnB) {
+                btnB.textContent = cameraRig.focusedPot === 'B' ? '확대 취소 (B)' : '확대 (B)';
+                btnB.className = cameraRig.focusedPot === 'B'
+                    ? 'text-[10px] bg-neutral-900 text-white px-2 py-0.5 rounded font-bold transition'
+                    : 'text-[10px] bg-white hover:bg-neutral-100 text-neutral-800 border border-neutral-300 px-2 py-0.5 rounded font-semibold transition';
+            }
+        }
+
+        function openReportModal() {
+            renderReportTable();
+            document.getElementById('report-modal').classList.remove('hidden');
+        }
+
+        function closeReportModal() {
+            document.getElementById('report-modal').classList.add('hidden');
+        }
+
+        function switchReportTab(tabName) {
+            const dataTab = document.getElementById('tab-content-data');
+            const designTab = document.getElementById('tab-content-design');
+            const btnData = document.getElementById('tab-btn-data');
+            const btnDesign = document.getElementById('tab-btn-design');
+
+            if (tabName === 'data') {
+                dataTab.classList.remove('hidden');
+                designTab.classList.add('hidden');
+                btnData.className = 'report-tab-btn px-4 py-2.5 text-xs sm:text-sm font-extrabold border-b-2 border-emerald-600 text-emerald-700 bg-white rounded-t-xl';
+                btnDesign.className = 'report-tab-btn px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800';
+            } else {
+                dataTab.classList.add('hidden');
+                designTab.classList.remove('hidden');
+                btnDesign.className = 'report-tab-btn px-4 py-2.5 text-xs sm:text-sm font-extrabold border-b-2 border-emerald-600 text-emerald-700 bg-white rounded-t-xl';
+                btnData.className = 'report-tab-btn px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800';
+            }
+        }
+
+        function resetExperiment() {
+            simState.totalHours = 9.0;
+            simState.boxCovered = true;
+            simState.lastRecordedWeek = 0;
+            simState.lastAutoAmpouleDay = 0;
+            simState.records = [];
+
+            simState.pots.A = {
+                id: 'A', label: '화분 A (대조군: 햇빛 O)',
+                water: 82, photosynthesis: 95, glucoseEnergy: 85, chlorophyll: 1.0,
+                leafSizeCm: 2.2, leafCount: 4, stemLengthCm: 3.2, stemThickMm: 1.8, etiolation: 0, ampouleCount: 0
+            };
+            simState.pots.B = {
+                id: 'B', label: '화분 B (비교군: 가림막 + 포도당 앰플)',
+                water: 82, photosynthesis: 0, glucoseEnergy: 80, ampouleRemaining: 85, ampouleCount: 1,
+                chlorophyll: 1.0, leafSizeCm: 2.2, leafCount: 4, stemLengthCm: 3.2, stemThickMm: 1.8, etiolation: 0
+            };
+
+            resetCameraView();
+
+            showBothPotCards();
+            recordObservationSnapshot(false, true);
+            updateUI();
+            showToast('실험이 0주차(0일차) 초기 모종 상태로 리셋되었습니다.');
+        }
+
+        function showToast(msg) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'bg-slate-900/90 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg border border-white/15 backdrop-blur-md transition-all duration-300 transform translate-y-0 opacity-100';
+            toast.textContent = msg;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3200);
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        /**
+         * ============================================================================
+         * 11. 메인 애니메이션 루프
+         * ============================================================================
+         */
+        function animate(now) {
+            requestAnimationFrame(animate);
+
+            const dt = Math.min(0.1, (now - lastFrameTime) / 1000);
+            lastFrameTime = now;
+
+            if (simState.timeScale > 0) {
+                stepSimulation(dt * simState.timeScale);
+            }
+
+            updateVisuals(dt);
+            updateUI();
+
+            // 부드러운 카메라 줌 전환
+            const lerpFactor = Math.min(1, dt * 6.5);
+            cameraRig.currentPos.lerp(cameraRig.targetPos, lerpFactor);
+            cameraRig.currentLookAt.lerp(cameraRig.targetLookAt, lerpFactor);
+            camera.position.copy(cameraRig.currentPos);
+            camera.lookAt(cameraRig.currentLookAt);
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function () {
+            initScene();
+            lastFrameTime = performance.now();
+            animate(lastFrameTime);
+        };
+    </script>
+</body>
+</html>
